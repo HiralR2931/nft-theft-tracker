@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/nft-theft-tracker/static/css/main.e6c13ad2.css",
+    "main.js": "/nft-theft-tracker/static/js/main.6be6d615.js",
+    "static/js/453.560702ec.chunk.js": "/nft-theft-tracker/static/js/453.560702ec.chunk.js",
+    "index.html": "/nft-theft-tracker/index.html",
+    "main.e6c13ad2.css.map": "/nft-theft-tracker/static/css/main.e6c13ad2.css.map",
+    "main.6be6d615.js.map": "/nft-theft-tracker/static/js/main.6be6d615.js.map",
+    "453.560702ec.chunk.js.map": "/nft-theft-tracker/static/js/453.560702ec.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.e6c13ad2.css",
+    "static/js/main.6be6d615.js"
+  ]
+}
