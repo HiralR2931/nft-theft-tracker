@@ -17,7 +17,7 @@ const db = mysql.createConnection({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
-  database: 'NFT_Theft_database',
+  database: process.env.DB_NAME,
   multipleStatements: true
 });
 
