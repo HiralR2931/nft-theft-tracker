@@ -3,6 +3,9 @@
 A full-stack forensics database system for tracking, investigating, and resolving NFT theft cases. Built with a normalized MySQL relational database, advanced SQL features (views, stored procedures, triggers), and an interactive React dashboard for real-time case monitoring.
 
 ---
+🌐 Live Demo
+👉 https://hiralr2931.github.io/nft-theft-tracker
+
 
 ## 📌 Project Overview
 
