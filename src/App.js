@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 
-const API = "http://localhost:5001";
+const API = "https://nft-theft-tracker-production.up.railway.app";
 
 const COLORS = {
   Open: "#ff4d6d", "Under Investigation": "#f4a261", Resolved: "#52b788", Closed: "#4cc9f0",
