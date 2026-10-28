@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 
-const API = process.env.REACT_APP_API_URL || "http://localhost:5001";
+// Empty string means same origin (Vercel serves the API at /api).
+const API = process.env.REACT_APP_API_URL ?? "http://localhost:5001";
 
 const COLORS = {
   Open: "#ff4d6d", "Under Investigation": "#f4a261", Resolved: "#52b788", Closed: "#4cc9f0",

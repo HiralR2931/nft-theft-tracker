@@ -18,17 +18,19 @@ NFT theft is a growing problem in digital art. Artists lose ownership of their w
 ## 🏗️ Architecture
 
 ```
-React dashboard (GitHub Pages)  ──HTTP/JSON──▶  Express API (Railway)  ──SQL──▶  MySQL 8
-        frontend/                                    backend/                    database/
+React dashboard  ──/api/*──▶  Express API (serverless function)  ──TLS──▶  MySQL 8 (Aiven)
+    frontend/                    backend/ + api/                        database/
+└──────────────── one Vercel project ────────────────┘
 ```
 
 ## 🗂️ Repository Structure
 
 ```
 nft-theft-tracker/
+├── api/index.js             # Vercel serverless entry point for the API
 ├── backend/                 # Node.js + Express REST API
-│   ├── server.js            # API routes and MySQL connection pool
-│   ├── railway.json         # Railway deploy config
+│   ├── app.js               # API routes and MySQL connection pool
+│   ├── server.js            # Starts the API as a regular server (local, Docker)
 │   └── .env.example         # Required environment variables
 ├── frontend/                # React dashboard (Create React App + Recharts)
 │   ├── src/App.js           # Dashboard UI
@@ -40,6 +42,7 @@ nft-theft-tracker/
 │   ├── generate_bulk_data.py    # Generates 03_bulk_data.sql
 │   └── queries.sql              # Analytical queries
 ├── docker-compose.yml       # Runs database, API and dashboard together
+├── vercel.json              # Vercel build and routing config
 └── README.md
 ```
 
@@ -177,8 +180,12 @@ Set `REACT_APP_API_URL` in `frontend/.env` to point the dashboard at a different
 
 ## ☁️ Deployment
 
-- **Backend:** Railway, with the service root directory set to `backend/`. Set the `DB_*` variables (and optionally `CORS_ORIGINS`) in Railway.
-- **Frontend:** GitHub Pages. `cd frontend && npm run deploy` builds against the Railway API and publishes to the `gh-pages` branch.
+The dashboard and API deploy together as one **Vercel** project, and the database runs on **Aiven for MySQL**.
+
+- `vercel.json` builds the dashboard and routes `/api/*` and `/health` to the Express app in `api/index.js`. Because both share one domain, the dashboard calls the API with relative URLs and needs no CORS setup.
+- Every push to `main` deploys to production, and every pull request gets its own preview URL.
+- Set these environment variables in the Vercel project: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSL_CA` (Aiven's CA certificate) and `DB_CONNECTION_LIMIT=2`.
+- Load the database once with the three `database/` files, the same way as in the manual setup.
 
 ## 🛠️ Tech Stack
 
@@ -189,7 +196,7 @@ Set `REACT_APP_API_URL` in `frontend/.env` to point the dashboard at a different
 | Frontend | React 19, Recharts |
 | Data generation | Python |
 | Local environment | Docker Compose, nginx |
-| Hosting | Railway (API + MySQL), GitHub Pages (dashboard) |
+| Hosting | Vercel (dashboard + serverless API), Aiven (MySQL) |
 
 ## 👤 Author
 
