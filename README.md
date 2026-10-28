@@ -1,8 +1,10 @@
 # 🔍 NFT Theft Tracker — Forensics Database System
 
-A full-stack system for tracking, investigating and resolving NFT theft cases: a normalized 16-table MySQL database, an Express REST API, and a React dashboard for monitoring cases.
+A full-stack system for tracking, investigating and resolving NFT theft cases: a normalized 16-table MySQL database, an Express REST API, and a React dashboard for running cases end to end.
 
 🌐 **Live demo:** https://nft-theft-tracker.vercel.app
+
+[![CI](https://github.com/HiralR2931/nft-theft-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/HiralR2931/nft-theft-tracker/actions/workflows/ci.yml)
 
 ---
 
@@ -11,9 +13,10 @@ A full-stack system for tracking, investigating and resolving NFT theft cases: a
 NFT theft is a growing problem in digital art. Artists lose ownership of their work through unauthorized minting, plagiarism and wallet fraud. This system provides:
 
 - A relational database for theft reports, investigations, evidence and resolutions
-- Suspicious-wallet tracking with risk-level classification
-- Investigator assignment and workload tracking
-- A REST API and dashboard that visualize the case data
+- **Case management**: file a report, open an investigation, add evidence and resolve the case, with every step validated and written in one transaction
+- **Data-quality monitoring**: 34 automated checks for referential integrity, completeness, validity and consistency
+- **Behavioral wallet risk scores** built with SQL window functions, plus a review queue of wallets whose assigned risk level understates their behavior
+- Investigator assignment and workload tracking, and a dashboard that visualizes all of it
 
 ## 🏗️ Architecture
 
@@ -29,12 +32,21 @@ React dashboard  ──/api/*──▶  Express API (serverless function)  ─�
 nft-theft-tracker/
 ├── api/index.js             # Vercel serverless entry point for the API
 ├── backend/                 # Node.js + Express REST API
-│   ├── app.js               # API routes and MySQL connection pool
+│   ├── app.js               # Read routes and error handling
+│   ├── cases.js             # Case lifecycle write endpoints
+│   ├── dataQuality.js       # Data-quality checks
+│   ├── riskScore.js         # Wallet risk scoring
+│   ├── db.js                # MySQL connection pool and transaction helper
 │   ├── server.js            # Starts the API as a regular server (local, Docker)
+│   ├── test/                # Jest + Supertest integration tests
 │   └── .env.example         # Required environment variables
 ├── frontend/                # React dashboard (Create React App + Recharts)
-│   ├── src/App.js           # Dashboard UI
+│   ├── src/App.js           # Dashboard shell and overview tabs
+│   ├── src/CasesTab.js      # Case management forms
+│   ├── src/DataQualityTab.js
+│   ├── src/RiskScorePanel.js
 │   └── .env.example
+├── .github/workflows/ci.yml # Tests on every push and pull request
 ├── database/
 │   ├── 01_schema.sql            # Creates the database and all 16 tables
 │   ├── 02_sample_data.sql       # 10 hand-written rows per table
@@ -117,17 +129,71 @@ PLATFORM >── PLATFORM_REPORTS >── THEFT_REPORT
 | `GET /api/investigator-workload` | Top 10 investigators by caseload |
 | `GET /api/wallets` | 50 highest-risk wallets |
 | `GET /api/transactions` | 20 most recent suspicious transactions |
+| `GET /api/data-quality` | Results of every data-quality check, with a summary score |
+| `GET /api/wallets/risk-scores` | Behavioral risk score and factor breakdown for every wallet |
+| `GET /api/options` | Artworks, platforms, investigators and allowed values for the forms |
+| `GET /api/reports` | Recent cases, filterable with `?status=` and `?limit=` |
+| `GET /api/reports/:id` | One case with its investigation, team, evidence and resolution |
+| `POST /api/reports` | File a theft report (`artworkId`, `platformId`, `description`, `stolenUrl`) |
+| `POST /api/reports/:id/investigation` | Open an investigation (`priority`, `leadInvestigatorId`, `notes`) |
+| `POST /api/reports/:id/evidence` | Add evidence (`type`, `description`, `url`) |
+| `POST /api/reports/:id/resolution` | Resolve the case (`outcome`, `actionTaken`, `notes`) |
 
-Queries run through a MySQL connection pool, and the dashboard's stat queries run in parallel. Database errors are logged on the server and never sent to clients, and CORS only allows the dashboard's origin.
+- **Writes** run in a single transaction and check that the case is in the right state, returning `409` if not, e.g. a case can't be resolved before it's investigated. Report, investigation and resolution statuses always move together, and the lead investigator signs off the resolution.
+- **Validation** uses zod and returns `400` with the problem for each field.
+- **Abuse limits:** the demo is public, so writes are rate limited per visitor (`WRITE_RATE_LIMIT`, default 30 per 15 minutes). `WRITES_ENABLED=false` makes the API read-only.
+- **Errors:** database errors are logged on the server and never sent to clients, and CORS only allows the dashboard's origin.
+
+## 🧪 Data Quality
+
+`GET /api/data-quality` runs 34 checks, each counting the rows that break a rule:
+
+| Category | Examples |
+|---|---|
+| Referential integrity | One check per foreign key, discovered from `information_schema` so new tables are covered automatically |
+| Completeness | Reports without a link to the stolen NFT, transactions without an amount |
+| Validity | Future report dates, reports filed before the artwork existed |
+| Consistency | Open reports with an investigation, resolutions on active cases, investigations without exactly one lead |
+
+The checks currently flag 5 issues, all in the original hand-written sample rows (IDs 001–010). The generated data passes every check.
+
+## 🎯 Wallet Risk Score
+
+Each wallet gets a 0–100 score from its transaction behavior. A CTE aggregates each wallet's activity, and `PERCENT_RANK()` turns each factor into a percentile, so counts, ETH amounts and days can be weighted and added:
+
+| Factor | Weight |
+|---|---|
+| Distinct reported-stolen artworks the wallet transacted | 30% |
+| Total value moved | 25% |
+| Largest single transaction | 15% |
+| Number of transactions | 15% |
+| How recently it was active | 15% |
+
+Scores map to levels (Critical 75+, High 55–74, Medium 35–54, Low under 35), which are compared with each wallet's assigned risk level. Wallets that behave two or more levels riskier than assigned go to a review queue. In the seed data only about a quarter of assigned levels match behavior, because the generator assigned them at random, so the comparison catches those mislabels.
+
+## ✅ Testing
+
+```bash
+docker compose up -d db                     # MySQL with seed data on localhost:3307
+cd backend && DB_HOST=127.0.0.1 DB_PORT=3307 DB_USER=nft DB_PASSWORD=nft_local_only \
+  DB_NAME=NFT_Theft_Database npm test
+cd frontend && npm test
+```
+
+- **Backend:** 40 integration tests (Jest + Supertest) against real MySQL. They cover every read endpoint, the full case lifecycle, invalid input and wrong-state errors, rate limiting, CORS, error hiding, the data-quality checks and the risk-score math.
+- **Frontend:** React Testing Library tests for the overview, filing a case and the Data Quality tab.
+- **CI:** GitHub Actions runs both on every push and pull request, builds the dashboard, and fails if `03_bulk_data.sql` no longer matches its generator.
 
 ## 🎨 Dashboard
 
 | Tab | Contents |
 |---|---|
 | **Overview** | Stat cards, theft-status pie chart, platform bar chart, resolution outcomes, wallet risk distribution |
+| **Cases** | File a report, then open an investigation, add evidence and resolve it; filterable list of recent cases |
 | **Investigations** | Investigator workload chart and roster with load indicators |
-| **Wallets** | Suspicious-wallet registry and risk breakdown |
+| **Wallets** | Behavioral risk scores by factor, review queue, assigned-vs-behavior matrix, wallet registry |
 | **Transactions** | Recent suspicious transactions and amount-by-artwork chart |
+| **Data Quality** | Quality score, pass rate by category, and every check with failures first |
 
 ## 🚀 Running Locally
 
@@ -192,9 +258,10 @@ The dashboard and API deploy together as one **Vercel** project, and the databas
 | Layer | Technology |
 |---|---|
 | Database | MySQL 8 |
-| Backend | Node.js, Express, mysql2 |
+| Backend | Node.js, Express, mysql2, zod, express-rate-limit |
 | Frontend | React 19, Recharts |
 | Data generation | Python |
+| Testing and CI | Jest, Supertest, React Testing Library, GitHub Actions |
 | Local environment | Docker Compose, nginx |
 | Hosting | Vercel (dashboard + serverless API), Aiven (MySQL) |
 
