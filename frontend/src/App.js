@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 
 import { API, COLORS, riskColor, statusColor, Badge, StatCard, SectionTitle, Card, Loader, CustomTooltip } from "./ui";
 import DataQualityTab from "./DataQualityTab";
+import CasesTab from "./CasesTab";
 
-const TABS = ["Overview", "Investigations", "Wallets", "Transactions", "Data Quality"];
+const TABS = ["Overview", "Cases", "Investigations", "Wallets", "Transactions", "Data Quality"];
 
 export default function NFTDashboard() {
   const [activeTab, setActiveTab] = useState("Overview");
@@ -19,8 +20,8 @@ export default function NFTDashboard() {
   const [wallets, setWallets] = useState([]);
   const [transactions, setTransactions] = useState([]);
 
-  // Fetch all data on mount
-  useEffect(() => {
+  // Fetch all data on mount, and again after a case changes so the charts stay current
+  const loadData = useCallback(() => {
     fetch(`${API}/api/stats`).then(r => r.json()).then(setStats).catch(console.error);
     fetch(`${API}/api/theft-status`).then(r => r.json()).then(setTheftStatus).catch(console.error);
     fetch(`${API}/api/platform-reports`).then(r => r.json()).then(setPlatformReports).catch(console.error);
@@ -30,6 +31,7 @@ export default function NFTDashboard() {
     fetch(`${API}/api/wallets`).then(r => r.json()).then(setWallets).catch(console.error);
     fetch(`${API}/api/transactions`).then(r => r.json()).then(setTransactions).catch(console.error);
   }, []);
+  useEffect(loadData, [loadData]);
 
   const theftStatusColored = theftStatus.map(d => ({ ...d, color: COLORS[d.name] || "#adb5bd" }));
   const walletRisksColored = walletRisks.map(d => ({ ...d, color: riskColor(d.name) }));
@@ -49,7 +51,7 @@ export default function NFTDashboard() {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#52b788", boxShadow: "0 0 6px #52b788" }} />
           <span style={{ fontSize: 11, color: "#52b788", letterSpacing: 1 }}>LIVE</span>
-          <span style={{ fontSize: 11, color: "#8b949e", marginLeft: 8 }}>{stats ? `${stats.totalReports} Active Cases` : "Loading..."}</span>
+          <span style={{ fontSize: 11, color: "#8b949e", marginLeft: 8 }}>{stats ? `${stats.totalReports} cases · ${stats.activeInvestigations} under investigation` : "Loading..."}</span>
         </div>
       </div>
 
@@ -313,6 +315,7 @@ export default function NFTDashboard() {
           </div>
         )}
 
+        {activeTab === "Cases" && <CasesTab onDataChanged={loadData} />}
         {activeTab === "Data Quality" && <DataQualityTab />}
       </div>
     </div>

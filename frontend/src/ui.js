@@ -60,12 +60,13 @@ export const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-// Fetches JSON from the API; `reload` refetches, e.g. after a form changes data.
+// Fetches JSON from the API (skipped while path is null); `reload` refetches after a change.
 export function useApi(path) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [version, setVersion] = useState(0);
   useEffect(() => {
+    if (!path) { setData(null); return; }
     let cancelled = false;
     fetch(`${API}${path}`)
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
@@ -78,3 +79,48 @@ export function useApi(path) {
 
 export const th = { textAlign: "left", padding: "8px 12px", color: "#8b949e", fontWeight: 600, fontSize: 11, letterSpacing: 1 };
 export const td = { padding: "12px", color: "#e6edf3", fontSize: 12 };
+
+// Sends a JSON body; resolves to { ok, data } so forms can show the API's error message.
+export async function postJson(path, body) {
+  try {
+    const res = await fetch(`${API}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    return { ok: res.ok, data: await res.json() };
+  } catch (e) {
+    return { ok: false, data: { error: "Could not reach the API" } };
+  }
+}
+
+const control = { width: "100%", boxSizing: "border-box", background: "#010409", border: "1px solid #30363d", borderRadius: 6,
+  color: "#e6edf3", padding: "8px 10px", fontSize: 12, fontFamily: "inherit" };
+
+export const Field = ({ label, children }) => (
+  <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, color: "#8b949e", letterSpacing: 1 }}>
+    {label.toUpperCase()}
+    {children}
+  </label>
+);
+export const Input = props => <input {...props} style={control} />;
+export const TextArea = props => <textarea rows={3} {...props} style={{ ...control, resize: "vertical" }} />;
+export const Select = ({ options, placeholder, ...props }) => (
+  <select {...props} style={control}>
+    {placeholder && <option value="">{placeholder}</option>}
+    {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+  </select>
+);
+export const Button = ({ children, disabled, ...props }) => (
+  <button {...props} disabled={disabled} style={{ background: disabled ? "#21262d" : "#4cc9f0", color: disabled ? "#8b949e" : "#010409",
+    border: "none", borderRadius: 6, padding: "9px 16px", fontSize: 12, fontWeight: 700, letterSpacing: 1,
+    fontFamily: "inherit", cursor: disabled ? "default" : "pointer" }}>
+    {children}
+  </button>
+);
+export const FormError = ({ error }) => error ? (
+  <div style={{ color: "#ff4d6d", fontSize: 12 }}>
+    {error.error}
+    {error.details && <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{error.details.map((d, i) => <li key={i}>{d.field}: {d.message}</li>)}</ul>}
+  </div>
+) : null;
