@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: API tests (MySQL)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          # Throwaway CI database; not a real credential.
+          MYSQL_ROOT_PASSWORD: ci_root
+          MYSQL_DATABASE: NFT_Theft_Database
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci_root"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ci_root
+      DB_NAME: NFT_Theft_Database
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Load schema and seed data
+        run: |
+          for f in database/01_schema.sql database/02_sample_data.sql database/03_bulk_data.sql; do
+            mysql -h 127.0.0.1 -uroot -pci_root < "$f"
+          done
+      - run: npm ci
+        working-directory: backend
+      - run: npm test
+        working-directory: backend
+
+  seed-data:
+    name: Seed data is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Regenerate and compare
+        run: |
+          python database/generate_bulk_data.py
+          git diff --exit-code database/03_bulk_data.sql
+
+  frontend:
+    name: Dashboard tests and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm test -- --watchAll=false
+        env:
+          CI: true
+      - run: npm run build
+        env:
+          CI: true
