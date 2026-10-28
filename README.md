@@ -34,10 +34,12 @@ nft-theft-tracker/
 │   ├── src/App.js           # Dashboard UI
 │   └── .env.example
 ├── database/
-│   ├── 01_schema.sql        # Creates the database and all 16 tables
-│   ├── 02_sample_data.sql   # 10 hand-written rows per table
-│   ├── 03_bulk_data.sql     # ~3,600 generated rows for realistic volume
-│   └── queries.sql          # Analytical queries
+│   ├── 01_schema.sql            # Creates the database and all 16 tables
+│   ├── 02_sample_data.sql       # 10 hand-written rows per table
+│   ├── 03_bulk_data.sql         # ~5,000 generated rows (do not edit by hand)
+│   ├── generate_bulk_data.py    # Generates 03_bulk_data.sql
+│   └── queries.sql              # Analytical queries
+├── docker-compose.yml       # Runs database, API and dashboard together
 └── README.md
 ```
 
@@ -54,6 +56,17 @@ nft-theft-tracker/
 **Junction tables:** `COLLECTION_ARTWORK`, `COLLECTOR_OWNERSHIP`, `INVESTIGATION_ASSIGNMENT`, `PLATFORM_REPORTS`
 
 Integrity is enforced with primary and foreign keys (`ON DELETE RESTRICT` / `CASCADE`), `UNIQUE` constraints on wallet addresses, IPFS hashes and transaction hashes, and `CHECK` constraints on status, risk-level and date fields.
+
+### Seed data
+
+`database/generate_bulk_data.py` produces about 5,000 rows across all 16 tables from a fixed seed, so the output is the same every run. It loads with foreign-key checks on, so a broken reference fails the load. The data also follows the case lifecycle:
+
+- Theft reports come after the artwork was created, and the reporter is the artwork's artist
+- Open reports have no investigation; resolved and closed reports have a completed investigation and a resolution
+- Each resolution is signed off by the lead investigator on that case
+- A wallet's last activity matches its most recent transaction, and each artwork has at most one current owner
+
+To regenerate it: `python3 database/generate_bulk_data.py`
 
 ```
 ARTIST ──< ARTWORK >── COLLECTION_ARTWORK >── NFT_COLLECTION
@@ -115,6 +128,24 @@ Queries run through a MySQL connection pool, and the dashboard's stat queries ru
 
 ## 🚀 Running Locally
 
+### Quick start with Docker
+
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
+```bash
+docker compose up --build
+```
+
+This starts MySQL with the schema and seed data loaded, the API and the dashboard. On the first run the database takes about a minute to load.
+
+- Dashboard: http://localhost:3000
+- API: http://localhost:5001/api/stats
+- MySQL: `localhost:3307`, user `nft`, password `nft_local_only` (local container only)
+
+Stop it with `Ctrl + C`. To reload the seed data from scratch, run `docker compose down -v` and start it again.
+
+### Manual setup
+
 **Prerequisites:** Node.js 18+, MySQL 8+
 
 ### 1. Database
@@ -156,6 +187,8 @@ Set `REACT_APP_API_URL` in `frontend/.env` to point the dashboard at a different
 | Database | MySQL 8 |
 | Backend | Node.js, Express, mysql2 |
 | Frontend | React 19, Recharts |
+| Data generation | Python |
+| Local environment | Docker Compose, nginx |
 | Hosting | Railway (API + MySQL), GitHub Pages (dashboard) |
 
 ## 👤 Author
