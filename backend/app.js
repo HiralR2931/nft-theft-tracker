@@ -3,15 +3,18 @@ const cors = require('cors');
 require('dotenv').config();
 const { pool, query } = require('./db');
 const { runChecks } = require('./dataQuality');
+const { createCasesRouter } = require('./cases');
 
 const app = express();
+// Behind Vercel's proxy: use the visitor's IP (for rate limiting), not the proxy's.
+app.set('trust proxy', 1);
 
 // Only the dashboard may call the API from a browser. Override with a comma-separated CORS_ORIGINS.
 const allowedOrigins = (process.env.CORS_ORIGINS || 'https://nft-theft-tracker.vercel.app,http://localhost:3000')
   .split(',')
   .map(origin => origin.trim());
 app.use(cors({ origin: allowedOrigins }));
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
 
 // Wraps a route so a failed query reaches the error handler instead of crashing the request.
 const route = handler => (req, res, next) => handler(req, res).catch(next);
@@ -97,8 +100,16 @@ app.get('/api/data-quality', route(async (req, res) => {
   res.json(qualityCache.report);
 }));
 
+// Writes change what the checks would find, so they clear the cached report.
+app.use('/api', createCasesRouter({ onWrite: () => { qualityCache.expires = 0; } }));
+
 // Log the real error but never send database details to the client.
 app.use((err, req, res, next) => {
+  // Client mistakes (bad input, wrong case state) get a clear message; anything else stays generic.
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Request body is not valid JSON' });
+  if (err.status >= 400 && err.status < 500) {
+    return res.status(err.status).json({ error: err.message, ...(err.details && { details: err.details }) });
+  }
   console.error(`${req.method} ${req.path} failed:`, err.message);
   res.status(500).json({ error: 'Internal server error' });
 });
