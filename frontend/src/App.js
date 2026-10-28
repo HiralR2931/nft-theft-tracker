@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, ResponsiveCo
 import { API, COLORS, riskColor, statusColor, Badge, StatCard, SectionTitle, Card, Loader, CustomTooltip } from "./ui";
 import DataQualityTab from "./DataQualityTab";
 import CasesTab from "./CasesTab";
+import RiskScorePanel from "./RiskScorePanel";
 
 const TABS = ["Overview", "Cases", "Investigations", "Wallets", "Transactions", "Data Quality"];
 
@@ -213,6 +214,8 @@ export default function NFTDashboard() {
               <StatCard icon="🟡" label="Medium Risk" value={walletRisks.find(w => w.name === "Medium")?.value} sub="Under watch" accent="#f4a261" />
               <StatCard icon="🟢" label="Low Risk" value={walletRisks.find(w => w.name === "Low")?.value} sub="Flagged wallets" accent="#52b788" />
             </div>
+
+            <RiskScorePanel />
 
             <Card>
               <SectionTitle>Suspicious Wallet Registry</SectionTitle>

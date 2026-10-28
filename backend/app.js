@@ -4,6 +4,7 @@ require('dotenv').config();
 const { pool, query } = require('./db');
 const { runChecks } = require('./dataQuality');
 const { createCasesRouter } = require('./cases');
+const { scoreWallets } = require('./riskScore');
 
 const app = express();
 // Behind Vercel's proxy: use the visitor's IP (for rate limiting), not the proxy's.
@@ -98,6 +99,10 @@ app.get('/api/data-quality', route(async (req, res) => {
     qualityCache = { report: await runChecks(query), expires: Date.now() + 60_000 };
   }
   res.json(qualityCache.report);
+}));
+
+app.get('/api/wallets/risk-scores', route(async (req, res) => {
+  res.json(await scoreWallets(query));
 }));
 
 // Writes change what the checks would find, so they clear the cached report.
