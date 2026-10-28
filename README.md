@@ -2,7 +2,7 @@
 
 A full-stack system for tracking, investigating and resolving NFT theft cases: a normalized 16-table MySQL database, an Express REST API, and a React dashboard for monitoring cases.
 
-🌐 **Live demo:** https://hiralr2931.github.io/nft-theft-tracker
+🌐 **Live demo:** https://nft-theft-tracker.vercel.app
 
 ---
 
