@@ -1,0 +1,224 @@
+-- NFT Theft Tracker: schema (16 tables)
+CREATE DATABASE IF NOT EXISTS NFT_Theft_Database;
+USE NFT_Theft_Database;
+
+-- 1. ARTIST Table
+CREATE TABLE ARTIST (
+    Artist_ID VARCHAR(50) PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    Wallet_Address VARCHAR(100) UNIQUE NOT NULL,
+    Email VARCHAR(100) UNIQUE NOT NULL,
+    Verification_Status VARCHAR(20) NOT NULL DEFAULT 'Unverified',
+    Registration_Date DATE NOT NULL DEFAULT (CURRENT_DATE),
+    CHECK (Verification_Status IN ('Verified', 'Pending', 'Unverified'))
+);
+
+-- 2. ARTWORK Table
+CREATE TABLE ARTWORK (
+    Artwork_ID VARCHAR(50) PRIMARY KEY,
+    Artist_ID VARCHAR(50) NOT NULL,
+    Title VARCHAR(200) NOT NULL,
+    Creation_Date DATE NOT NULL,
+    IPFS_Hash VARCHAR(100) UNIQUE NOT NULL,
+    Description TEXT NULL,
+    FOREIGN KEY (Artist_ID) REFERENCES ARTIST(Artist_ID)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE
+);
+
+-- 3. NFT_COLLECTION Table
+CREATE TABLE NFT_COLLECTION (
+    Collection_ID VARCHAR(50) PRIMARY KEY,
+    Artist_ID VARCHAR(50) NOT NULL,
+    Name VARCHAR(200) NOT NULL,
+    Contract_Address VARCHAR(100) UNIQUE NOT NULL,
+    Blockchain_Network VARCHAR(50) NOT NULL,
+    Total_Supply INT NOT NULL,
+    Launch_Date DATE NOT NULL,
+    CHECK (Total_Supply > 0),
+    FOREIGN KEY (Artist_ID) REFERENCES ARTIST(Artist_ID)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE
+);
+
+-- 4. COLLECTOR Table
+CREATE TABLE COLLECTOR (
+    Collector_ID VARCHAR(50) PRIMARY KEY,
+    Username VARCHAR(100) UNIQUE NOT NULL,
+    Wallet_Address VARCHAR(100) UNIQUE NOT NULL,
+    Email VARCHAR(100) UNIQUE NOT NULL,
+    Join_Date DATE NOT NULL DEFAULT (CURRENT_DATE),
+    Reputation_Score FLOAT NULL DEFAULT 0.0,
+    CHECK (Reputation_Score >= 0 AND Reputation_Score <= 100)
+);
+
+-- 5. PLATFORM Table
+CREATE TABLE PLATFORM (
+    Platform_ID VARCHAR(50) PRIMARY KEY,
+    Name VARCHAR(100) UNIQUE NOT NULL,
+    URL VARCHAR(200) UNIQUE NOT NULL,
+    Verification_Status VARCHAR(20) NOT NULL DEFAULT 'Unverified',
+    Contact_Info VARCHAR(200) NULL,
+    Contact_Email VARCHAR(100) NOT NULL,
+    CHECK (Verification_Status IN ('Verified', 'Pending', 'Unverified'))
+);
+
+-- 6. THEFT_REPORT Table
+CREATE TABLE THEFT_REPORT (
+    Report_ID VARCHAR(50) PRIMARY KEY,
+    Artwork_ID VARCHAR(50) NOT NULL,
+    Reporter_ID VARCHAR(50) NOT NULL,
+    Platform_ID VARCHAR(50) NOT NULL,
+    Report_Date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    Status VARCHAR(20) NOT NULL DEFAULT 'Open',
+    Description TEXT NOT NULL,
+    Stolen_NFT_URL VARCHAR(200) NULL,
+    CHECK (Status IN ('Open', 'Under Investigation', 'Resolved', 'Closed')),
+    FOREIGN KEY (Artwork_ID) REFERENCES ARTWORK(Artwork_ID)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    FOREIGN KEY (Reporter_ID) REFERENCES ARTIST(Artist_ID)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    FOREIGN KEY (Platform_ID) REFERENCES PLATFORM(Platform_ID)
+        ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- 7. INVESTIGATION Table
+CREATE TABLE INVESTIGATION (
+    Investigation_ID VARCHAR(50) PRIMARY KEY,
+    Report_ID VARCHAR(50) UNIQUE NOT NULL,
+    Start_Date DATE NOT NULL DEFAULT (CURRENT_DATE),
+    End_Date DATE NULL,
+    Priority VARCHAR(20) NOT NULL DEFAULT 'Medium',
+    Status VARCHAR(20) NOT NULL DEFAULT 'Active',
+    Notes TEXT NULL,
+    CHECK (Priority IN ('Low', 'Medium', 'High', 'Critical')),
+    CHECK (Status IN ('Active', 'Pending', 'Completed', 'Suspended')),
+    CHECK (End_Date >= Start_Date OR End_Date IS NULL),
+    FOREIGN KEY (Report_ID) REFERENCES THEFT_REPORT(Report_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- 8. INVESTIGATOR Table
+CREATE TABLE INVESTIGATOR (
+    Investigator_ID VARCHAR(50) PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    Badge_Number VARCHAR(50) UNIQUE NOT NULL,
+    Email VARCHAR(100) UNIQUE NOT NULL,
+    Expertise VARCHAR(200) NULL,
+    Join_Date DATE NOT NULL DEFAULT (CURRENT_DATE)
+);
+
+-- 9. EVIDENCE Table
+CREATE TABLE EVIDENCE (
+    Evidence_ID VARCHAR(50) PRIMARY KEY,
+    Case_ID VARCHAR(50) NOT NULL,
+    Type VARCHAR(50) NOT NULL,
+    File_Hash VARCHAR(100) UNIQUE NOT NULL,
+    Collection_Date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    Description TEXT NULL,
+    URL VARCHAR(200) NULL,
+    FOREIGN KEY (Case_ID) REFERENCES INVESTIGATION(Investigation_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- 10. RESOLUTION Table
+CREATE TABLE RESOLUTION (
+    Resolution_ID VARCHAR(50) PRIMARY KEY,
+    Report_ID VARCHAR(50) UNIQUE NOT NULL,
+    Resolved_By VARCHAR(50) NOT NULL,
+    Resolution_Date DATE NOT NULL DEFAULT (CURRENT_DATE),
+    Outcome VARCHAR(50) NOT NULL,
+    Action_Taken VARCHAR(200) NULL,
+    Notes TEXT NULL,
+    CHECK (Outcome IN ('Recovered', 'Compensated', 'Dismissed', 'Ongoing')),
+    FOREIGN KEY (Report_ID) REFERENCES THEFT_REPORT(Report_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Resolved_By) REFERENCES INVESTIGATOR(Investigator_ID)
+        ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- 11. SUSPICIOUS_WALLET Table
+CREATE TABLE SUSPICIOUS_WALLET (
+    Wallet_ID VARCHAR(50) PRIMARY KEY,
+    Address VARCHAR(100) UNIQUE NOT NULL,
+    Risk_Level VARCHAR(20) NOT NULL DEFAULT 'Low',
+    First_Flagged DATE NOT NULL DEFAULT (CURRENT_DATE),
+    Last_Activity DATE NULL,
+    Status VARCHAR(20) NOT NULL DEFAULT 'Active',
+    CHECK (Risk_Level IN ('Low', 'Medium', 'High', 'Critical')),
+    CHECK (Status IN ('Active', 'Monitoring', 'Blocked', 'Cleared'))
+);
+
+-- 12. TRANSACTION Table
+CREATE TABLE TRANSACTION (
+    Transaction_ID VARCHAR(50) PRIMARY KEY,
+    Artwork_ID VARCHAR(50) NOT NULL,
+    Wallet_ID VARCHAR(50) NOT NULL,
+    Block_Number INT NOT NULL,
+    From_Wallet VARCHAR(100) NOT NULL,
+    To_Wallet VARCHAR(100) NOT NULL,
+    Transaction_Hash VARCHAR(100) UNIQUE NOT NULL,
+    Timestamp DATETIME NOT NULL,
+    Amount DECIMAL(18,8) NULL,
+    CHECK (Amount >= 0 OR Amount IS NULL),
+    FOREIGN KEY (Artwork_ID) REFERENCES ARTWORK(Artwork_ID)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    FOREIGN KEY (Wallet_ID) REFERENCES SUSPICIOUS_WALLET(Wallet_ID)
+        ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- Junction Tables
+
+-- 13. COLLECTION_ARTWORK
+CREATE TABLE COLLECTION_ARTWORK (
+    Collection_ID VARCHAR(50),
+    Artwork_ID VARCHAR(50),
+    Date_Added DATE NOT NULL DEFAULT (CURRENT_DATE),
+    PRIMARY KEY (Collection_ID, Artwork_ID),
+    FOREIGN KEY (Collection_ID) REFERENCES NFT_COLLECTION(Collection_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Artwork_ID) REFERENCES ARTWORK(Artwork_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- 14. COLLECTOR_OWNERSHIP
+CREATE TABLE COLLECTOR_OWNERSHIP (
+    Collector_ID VARCHAR(50),
+    Artwork_ID VARCHAR(50),
+    Purchase_Date DATE NOT NULL,
+    Purchase_Price DECIMAL(18,8) NULL,
+    Current_Owner BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (Collector_ID, Artwork_ID, Purchase_Date),
+    CHECK (Purchase_Price >= 0 OR Purchase_Price IS NULL),
+    FOREIGN KEY (Collector_ID) REFERENCES COLLECTOR(Collector_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Artwork_ID) REFERENCES ARTWORK(Artwork_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- 15. INVESTIGATION_ASSIGNMENT
+CREATE TABLE INVESTIGATION_ASSIGNMENT (
+    Investigation_ID VARCHAR(50),
+    Investigator_ID VARCHAR(50),
+    Assignment_Date DATE NOT NULL DEFAULT (CURRENT_DATE),
+    Role VARCHAR(50) NOT NULL DEFAULT 'Assistant',
+    PRIMARY KEY (Investigation_ID, Investigator_ID),
+    CHECK (Role IN ('Lead', 'Assistant', 'Consultant', 'Forensic Analyst')),
+    FOREIGN KEY (Investigation_ID) REFERENCES INVESTIGATION(Investigation_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Investigator_ID) REFERENCES INVESTIGATOR(Investigator_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- 16. PLATFORM_REPORTS
+CREATE TABLE PLATFORM_REPORTS (
+    Platform_ID VARCHAR(50),
+    Report_ID VARCHAR(50),
+    Report_Date DATE NOT NULL DEFAULT (CURRENT_DATE),
+    PRIMARY KEY (Platform_ID, Report_ID),
+    FOREIGN KEY (Platform_ID) REFERENCES PLATFORM(Platform_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Report_ID) REFERENCES THEFT_REPORT(Report_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+

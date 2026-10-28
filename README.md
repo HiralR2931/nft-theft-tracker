@@ -1,78 +1,59 @@
 # 🔍 NFT Theft Tracker — Forensics Database System
 
-A full-stack forensics database system for tracking, investigating, and resolving NFT theft cases. Built with a normalized MySQL relational database, advanced SQL features (views, stored procedures, triggers), and an interactive React dashboard for real-time case monitoring.
+A full-stack system for tracking, investigating and resolving NFT theft cases: a normalized 16-table MySQL database, an Express REST API, and a React dashboard for monitoring cases.
 
----
-🌐 Live Demo
-👉 https://hiralr2931.github.io/nft-theft-tracker
-
-
-## 📌 Project Overview
-
-NFT theft is a growing problem in the digital art space — artists lose ownership of their work through unauthorized minting, plagiarism, and wallet fraud. This system provides:
-
-- A structured database to record theft reports, investigations, and resolutions
-- Suspicious wallet tracking with risk-level classification
-- Investigator assignment and workload management
-- An interactive forensics dashboard to visualize all case data
+🌐 **Live demo:** https://hiralr2931.github.io/nft-theft-tracker
 
 ---
 
-## 🗂️ Project Structure
+## 📌 Overview
+
+NFT theft is a growing problem in digital art. Artists lose ownership of their work through unauthorized minting, plagiarism and wallet fraud. This system provides:
+
+- A relational database for theft reports, investigations, evidence and resolutions
+- Suspicious-wallet tracking with risk-level classification
+- Investigator assignment and workload tracking
+- A REST API and dashboard that visualize the case data
+
+## 🏗️ Architecture
+
+```
+React dashboard (GitHub Pages)  ──HTTP/JSON──▶  Express API (Railway)  ──SQL──▶  MySQL 8
+        frontend/                                    backend/                    database/
+```
+
+## 🗂️ Repository Structure
 
 ```
 nft-theft-tracker/
-├── NFT.sql                  # Database schema (all 16 tables)
-├── NFT_data.sql             # Seed data (CSV imports)
-├── MYSQL_Queries.sql        # Core analytical queries (10 queries)
-├── NFT_Advanced_SQL.sql     # Views, Stored Procedures, Triggers
-├── nft-dashboard/           # React frontend dashboard
-│   └── src/
-│       └── App.js           # Main dashboard component
+├── backend/                 # Node.js + Express REST API
+│   ├── server.js            # API routes and MySQL connection pool
+│   ├── railway.json         # Railway deploy config
+│   └── .env.example         # Required environment variables
+├── frontend/                # React dashboard (Create React App + Recharts)
+│   ├── src/App.js           # Dashboard UI
+│   └── .env.example
+├── database/
+│   ├── 01_schema.sql        # Creates the database and all 16 tables
+│   ├── 02_sample_data.sql   # 10 hand-written rows per table
+│   ├── 03_bulk_data.sql     # ~3,600 generated rows for realistic volume
+│   └── queries.sql          # Analytical queries
 └── README.md
 ```
 
----
-
 ## 🗄️ Database Schema
 
-The database contains **16 tables** organized across 3 logical layers:
+16 tables in three logical groups, plus junction tables.
 
-### Core Entities
-| Table | Description |
-|---|---|
-| `ARTIST` | Registered NFT artists with verification status |
-| `ARTWORK` | Individual NFT artworks with IPFS hash |
-| `NFT_COLLECTION` | Collections of NFTs per artist |
-| `COLLECTOR` | NFT buyers/owners with reputation scores |
-| `PLATFORM` | NFT marketplaces (OpenSea, Rarible, etc.) |
+**Core entities:** `ARTIST`, `ARTWORK`, `NFT_COLLECTION`, `COLLECTOR`, `PLATFORM`
 
-### Theft & Investigation
-| Table | Description |
-|---|---|
-| `THEFT_REPORT` | Filed theft cases linked to artwork & platform |
-| `INVESTIGATION` | Investigations opened per theft report |
-| `INVESTIGATOR` | Assigned forensic investigators |
-| `EVIDENCE` | Digital evidence collected per case |
-| `RESOLUTION` | Final outcome of resolved cases |
+**Theft & investigation:** `THEFT_REPORT`, `INVESTIGATION`, `INVESTIGATOR`, `EVIDENCE`, `RESOLUTION`
 
-### Tracking & Transactions
-| Table | Description |
-|---|---|
-| `SUSPICIOUS_WALLET` | Flagged wallets with risk classification |
-| `TRANSACTION` | Blockchain transactions linked to suspicious wallets |
+**Tracking:** `SUSPICIOUS_WALLET`, `TRANSACTION`
 
-### Junction Tables
-| Table | Description |
-|---|---|
-| `COLLECTION_ARTWORK` | Many-to-many: collections ↔ artworks |
-| `COLLECTOR_OWNERSHIP` | Ownership history per collector |
-| `INVESTIGATION_ASSIGNMENT` | Investigator assignments per case |
-| `PLATFORM_REPORTS` | Reports filed per platform |
+**Junction tables:** `COLLECTION_ARTWORK`, `COLLECTOR_OWNERSHIP`, `INVESTIGATION_ASSIGNMENT`, `PLATFORM_REPORTS`
 
----
-
-## 🔗 Entity Relationship Overview
+Integrity is enforced with primary and foreign keys (`ON DELETE RESTRICT` / `CASCADE`), `UNIQUE` constraints on wallet addresses, IPFS hashes and transaction hashes, and `CHECK` constraints on status, risk-level and date fields.
 
 ```
 ARTIST ──< ARTWORK >── COLLECTION_ARTWORK >── NFT_COLLECTION
@@ -80,161 +61,107 @@ ARTIST ──< ARTWORK >── COLLECTION_ARTWORK >── NFT_COLLECTION
   │            └──< THEFT_REPORT >── INVESTIGATION >── INVESTIGATION_ASSIGNMENT
   │                      │                  │                    │
   │                   PLATFORM          EVIDENCE            INVESTIGATOR
-  │                      │                  
-  │                   RESOLUTION        
+  │                      │
+  │                   RESOLUTION
   │
 COLLECTOR >── COLLECTOR_OWNERSHIP
 SUSPICIOUS_WALLET ──< TRANSACTION >── ARTWORK
 PLATFORM >── PLATFORM_REPORTS >── THEFT_REPORT
 ```
 
----
+## 📊 Analytical Queries
 
-## ⚙️ Advanced SQL Features
+`database/queries.sql` covers a range of SQL techniques:
 
-### Views (5)
-| View | Purpose |
+| Technique | Question answered |
 |---|---|
-| `vw_OpenCases` | All open theft reports with artwork & artist details |
-| `vw_HighRiskWallets` | High & critical risk wallets not yet cleared |
-| `vw_InvestigatorWorkload` | Active vs completed cases per investigator |
-| `vw_FullCaseSummary` | End-to-end case view: report → investigation → resolution |
-| `vw_SuspiciousArtworkTransactions` | Artworks linked to high-risk wallet transactions |
+| Filtering | Which artists are verified? |
+| Aggregation | Average, max and min transaction amount per wallet |
+| Inner join | Which investigator resolved which case? |
+| Join with condition | Which artworks were transferred most often before being stolen? |
+| Non-correlated subquery | Which wallets receive above-average total value? |
+| Correlated subquery | How many times was each artwork transferred? |
+| `>= ALL` | The highest-value transaction for each artwork |
+| `NOT EXISTS` | Artists who have never had a theft report |
+| `UNION` | Wallets tied to stolen artwork or high-value transfers |
+| Nested subqueries | Artists with more artworks than average |
+| Left join | All resolutions with their investigator |
+| `CASE` + left join | Stolen artworks and whether they were investigated |
 
-### Stored Procedures (4)
-| Procedure | Purpose |
+## 🔌 REST API
+
+| Endpoint | Returns |
 |---|---|
-| `sp_FileTheftReport` | File a new theft report cleanly |
-| `sp_AutoAssignInvestigator` | Auto-assigns the least busy investigator |
-| `sp_ResolveCase` | Resolves report, investigation & creates resolution in one call |
-| `sp_GetArtistCases` | Fetch all theft cases for a given artist |
+| `GET /health` | API and database status |
+| `GET /api/stats` | Total reports, active investigations, flagged wallets, resolved cases |
+| `GET /api/theft-status` | Theft reports by status |
+| `GET /api/platform-reports` | Top 10 platforms by number of reports |
+| `GET /api/wallet-risks` | Suspicious wallets by risk level |
+| `GET /api/resolutions` | Resolutions by outcome |
+| `GET /api/investigator-workload` | Top 10 investigators by caseload |
+| `GET /api/wallets` | 50 highest-risk wallets |
+| `GET /api/transactions` | 20 most recent suspicious transactions |
 
-### Triggers (4)
-| Trigger | Purpose |
-|---|---|
-| `trg_AutoCreateInvestigation` | Auto-creates investigation when theft report is filed |
-| `trg_FlagWalletOnHighActivity` | Escalates wallet risk after 3+ theft-linked transactions |
-| `trg_PreventArtistDeletion` | Blocks deletion of artists with open cases |
-| `trg_UpdateWalletLastActivity` | Updates wallet last activity on every new transaction |
+Queries run through a MySQL connection pool, and the dashboard's stat queries run in parallel. Database errors are logged on the server and never sent to clients, and CORS only allows the dashboard's origin.
 
----
-
-## 📊 Core Analytical Queries
-
-| # | Query | Purpose |
-|---|---|---|
-| 1 | List Verified Artists | Filter artists by verification status |
-| 2 | Artworks per Artist | COUNT aggregation with LEFT JOIN |
-| 3 | NFTs per Collection | Collection size aggregation |
-| 4 | Platforms with Most Reports | Ranked theft report count per platform |
-| 5 | Open vs Resolved Reports | Status distribution analysis |
-| 6 | High/Critical Investigations | Priority filtering |
-| 7 | Investigator Workload | Case count per investigator |
-| 8 | Wallet Risk vs Transaction Value | AVG amount by risk level |
-| 9 | Above-Average Transaction Artworks | Subquery with HAVING clause |
-| 10 | Full Theft Case Summary | Complex multi-table JOIN |
-
----
-
-## 🎨 Interactive Dashboard
-
-A React-based forensics dashboard with 4 tabs:
+## 🎨 Dashboard
 
 | Tab | Contents |
 |---|---|
-| **Overview** | Stat cards, theft status pie chart, platform bar chart, resolution outcomes, wallet risk distribution |
-| **Investigations** | Investigator workload chart, full roster table with load indicators |
-| **Wallets** | Suspicious wallet registry, risk level breakdown chart |
-| **Transactions** | Recent suspicious transactions table, amount-by-artwork chart |
+| **Overview** | Stat cards, theft-status pie chart, platform bar chart, resolution outcomes, wallet risk distribution |
+| **Investigations** | Investigator workload chart and roster with load indicators |
+| **Wallets** | Suspicious-wallet registry and risk breakdown |
+| **Transactions** | Recent suspicious transactions and amount-by-artwork chart |
 
----
+## 🚀 Running Locally
 
-## 🚀 Setup Instructions
+**Prerequisites:** Node.js 18+, MySQL 8+
 
-### 1. Database Setup (MySQL Workbench)
-
-```sql
--- Step 1: Create and select the database
-CREATE DATABASE NFT_Theft_Database;
-USE NFT_Theft_Database;
-
--- Step 2: Run the schema
--- Open and execute NFT.sql
-
--- Step 3: Import CSV data
--- Right-click each table in Workbench → Table Data Import Wizard
--- Import each CSV file into its matching table
-
--- Step 4: Run core queries
--- Open and execute MYSQL_Queries.sql
-
--- Step 5: Add advanced features
--- Open and execute NFT_Advanced_SQL.sql
-```
-
-### 2. Dashboard Setup (React)
-
-**Prerequisites:** Node.js v18+ installed
+### 1. Database
 
 ```bash
-# Clone the repository
-git clone https://github.com/YOUR_USERNAME/nft-theft-tracker.git
-cd nft-theft-tracker/nft-dashboard
+mysql -u root -p < database/01_schema.sql
+mysql -u root -p < database/02_sample_data.sql
+mysql -u root -p < database/03_bulk_data.sql
+```
 
-# Install dependencies
+### 2. Backend
+
+```bash
+cd backend
+cp .env.example .env    # then fill in your MySQL credentials
 npm install
-npm install recharts
-
-# Start the dashboard
-npm start
+npm start               # http://localhost:5001
 ```
 
-Open your browser at `http://localhost:3000`
+### 3. Frontend
 
----
-
-## 🧪 Testing Stored Procedures
-
-```sql
--- File a new theft report (use a unique Report_ID each time)
-CALL sp_FileTheftReport('RPT-TEST-001', 'AWK001', 'ART001', 'PLT001', 'Test theft report', NULL);
-
--- Auto-assign investigator to a case
-CALL sp_AutoAssignInvestigator('INVS001', 'Lead');
-
--- Resolve a case (use a Report_ID with no existing resolution)
-CALL sp_ResolveCase('RES-TEST-001', 'RPT010', 'INV001', 'Recovered', 'NFT taken down', 'Resolved via DMCA');
-
--- Get all cases for an artist
-CALL sp_GetArtistCases('ART001');
+```bash
+cd frontend
+npm install
+npm start               # http://localhost:3000, uses the API at http://localhost:5001
 ```
 
-> ⚠️ Always use a unique ID for each test call. Reports already resolved: RPT001–RPT009, RPT013, RPT015, RPT017, RPT020.
+Set `REACT_APP_API_URL` in `frontend/.env` to point the dashboard at a different API.
 
----
+## ☁️ Deployment
+
+- **Backend:** Railway, with the service root directory set to `backend/`. Set the `DB_*` variables (and optionally `CORS_ORIGINS`) in Railway.
+- **Frontend:** GitHub Pages. `cd frontend && npm run deploy` builds against the Railway API and publishes to the `gh-pages` branch.
 
 ## 🛠️ Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Database | MySQL 8.0 |
-| Query Tool | MySQL Workbench |
-| Frontend | React 18 |
-| Charts | Recharts |
-| Styling | Inline CSS + Tailwind utility classes |
-| Version Control | Git + GitHub |
-
----
+| Database | MySQL 8 |
+| Backend | Node.js, Express, mysql2 |
+| Frontend | React 19, Recharts |
+| Hosting | Railway (API + MySQL), GitHub Pages (dashboard) |
 
 ## 👤 Author
 
-Built as a database systems project demonstrating:
-- Relational database design & normalization
-- Advanced SQL (views, procedures, triggers)
-- Frontend data visualization with React
-
----
+Hiral Rana. Originally built for IE6700 Data Management for Analytics at Northeastern University.
 
 ## 📄 License
 
-This project is for educational purposes.
+For educational purposes.
