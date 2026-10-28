@@ -1,37 +1,17 @@
 const express = require('express');
-const mysql = require('mysql2/promise');
 const cors = require('cors');
 require('dotenv').config();
+const { pool, query } = require('./db');
+const { runChecks } = require('./dataQuality');
 
 const app = express();
 
 // Only the dashboard may call the API from a browser. Override with a comma-separated CORS_ORIGINS.
-const allowedOrigins = (process.env.CORS_ORIGINS || 'https://hiralr2931.github.io,http://localhost:3000')
+const allowedOrigins = (process.env.CORS_ORIGINS || 'https://nft-theft-tracker.vercel.app,http://localhost:3000')
   .split(',')
   .map(origin => origin.trim());
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
-
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port: process.env.DB_PORT || 3306,
-  // Hosted MySQL (e.g. Aiven) requires TLS; DB_SSL_CA holds the provider's CA certificate.
-  ssl: process.env.DB_SSL_CA ? { ca: process.env.DB_SSL_CA.replace(/\\n/g, '\n') } : undefined,
-  waitForConnections: true,
-  // Keep this low on serverless hosts, where each instance opens its own pool.
-  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT) || 10,
-  queueLimit: 0,
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 0
-});
-
-async function query(sql, values) {
-  const [results] = await pool.execute(sql, values);
-  return results;
-}
 
 // Wraps a route so a failed query reaches the error handler instead of crashing the request.
 const route = handler => (req, res, next) => handler(req, res).catch(next);
@@ -46,17 +26,19 @@ app.get('/health', route(async (req, res) => {
 }));
 
 app.get('/api/stats', route(async (req, res) => {
-  const [reports, investigations, wallets, resolved] = await Promise.all([
+  const [reports, investigations, wallets, resolved, transactions] = await Promise.all([
     query('SELECT COUNT(*) AS count FROM THEFT_REPORT'),
     query("SELECT COUNT(*) AS count FROM INVESTIGATION WHERE Status='Active'"),
     query('SELECT COUNT(*) AS count FROM SUSPICIOUS_WALLET'),
-    query('SELECT COUNT(*) AS count FROM RESOLUTION')
+    query('SELECT COUNT(*) AS count FROM RESOLUTION'),
+    query('SELECT COUNT(*) AS count FROM TRANSACTION')
   ]);
   res.json({
     totalReports: reports[0].count,
     activeInvestigations: investigations[0].count,
     totalWallets: wallets[0].count,
-    resolvedCases: resolved[0].count
+    resolvedCases: resolved[0].count,
+    totalTransactions: transactions[0].count
   });
 }));
 
@@ -104,6 +86,15 @@ app.get('/api/transactions', route(async (req, res) => {
     FROM TRANSACTION t
     JOIN SUSPICIOUS_WALLET sw ON t.Wallet_ID = sw.Wallet_ID
     ORDER BY t.Timestamp DESC LIMIT 20`));
+}));
+
+// The checks scan every table, so cache the report briefly instead of rerunning them on each visit.
+let qualityCache = { report: null, expires: 0 };
+app.get('/api/data-quality', route(async (req, res) => {
+  if (Date.now() > qualityCache.expires) {
+    qualityCache = { report: await runChecks(query), expires: Date.now() + 60_000 };
+  }
+  res.json(qualityCache.report);
 }));
 
 // Log the real error but never send database details to the client.
